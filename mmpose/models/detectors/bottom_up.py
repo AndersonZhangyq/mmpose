@@ -337,11 +337,18 @@ class BottomUp(BasePose):
         pose_result = []
         for res in result:
             pose_result.append(res['keypoints'])
-
+        kpt_name = [
+            'nose', 'left_eye', 'right_eye', 'left_ear', 'right_ear',
+            'left_shoulder', 'right_shoulder', 'left_elbow', 'right_elbow',
+            'left_wrist', 'right_wrist', 'left_hip', 'right_hip', 'left_knee',
+            'right_knee', 'left_ankle', 'right_ankle'
+        ]
+        has_under_thr_kpt = False
         for _, kpts in enumerate(pose_result):
             # draw each point on image
             if pose_kpt_color is not None:
                 assert len(pose_kpt_color) == len(kpts)
+                output_line = []
                 for kid, kpt in enumerate(kpts):
                     x_coord, y_coord, kpt_score = int(kpt[0]), int(
                         kpt[1]), kpt[2]
@@ -363,6 +370,14 @@ class BottomUp(BasePose):
                             r, g, b = pose_kpt_color[kid]
                             cv2.circle(img, (int(x_coord), int(y_coord)),
                                        radius, (int(r), int(g), int(b)), -1)
+                    else:
+                        if kid not in [1, 2, 3, 4]:
+                            if not has_under_thr_kpt:
+                                output_line.append(out_file)
+                            has_under_thr_kpt = True
+                            output_line.append(f'{kpt_name[kid]}:{kpt_score}')
+                if len(output_line) > 0:
+                    print(' '.join(output_line))
 
             # draw limbs
             if skeleton is not None and pose_limb_color is not None:

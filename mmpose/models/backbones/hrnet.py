@@ -154,7 +154,7 @@ class HRModule(nn.Module):
                                 align_corners=self.
                                 upsample_cfg['align_corners'])))
                 elif j == i:
-                    fuse_layer.append(None)
+                    fuse_layer.append(nn.Identity())
                 else:
                     conv_downsamples = []
                     for k in range(i - j):
@@ -411,7 +411,7 @@ class HRNet(nn.Module):
                                              num_channels_cur_layer[i])[1],
                             nn.ReLU(inplace=True)))
                 else:
-                    transition_layers.append(None)
+                    transition_layers.append(nn.Identity())
             else:
                 conv_downsamples = []
                 for j in range(i + 1 - num_branches_pre):
@@ -540,7 +540,7 @@ class HRNet(nn.Module):
 
         x_list = []
         for i in range(self.stage2_cfg['num_branches']):
-            if self.transition1[i] is not None:
+            if not isinstance(self.transition1[i], nn.Identity):
                 x_list.append(self.transition1[i](x))
             else:
                 x_list.append(x)
@@ -548,7 +548,7 @@ class HRNet(nn.Module):
 
         x_list = []
         for i in range(self.stage3_cfg['num_branches']):
-            if self.transition2[i] is not None:
+            if not isinstance(self.transition2[i], nn.Identity):
                 x_list.append(self.transition2[i](y_list[-1]))
             else:
                 x_list.append(y_list[i])
@@ -556,7 +556,7 @@ class HRNet(nn.Module):
 
         x_list = []
         for i in range(self.stage4_cfg['num_branches']):
-            if self.transition3[i] is not None:
+            if not isinstance(self.transition3[i], nn.Identity):
                 x_list.append(self.transition3[i](y_list[-1]))
             else:
                 x_list.append(y_list[i])
@@ -571,3 +571,64 @@ class HRNet(nn.Module):
             for m in self.modules():
                 if isinstance(m, _BatchNorm):
                     m.eval()
+
+
+@BACKBONES.register_module()
+class HRNetSeperateStages(HRNet):
+
+    def __init__(self,
+                 extra,
+                 in_channels=3,
+                 conv_cfg=None,
+                 norm_cfg=dict(type='BN'),
+                 norm_eval=False,
+                 with_cp=False,
+                 zero_init_residual=False):
+        super().__init__(
+            extra,
+            in_channels=3,
+            conv_cfg=None,
+            norm_cfg=dict(type='BN'),
+            norm_eval=False,
+            with_cp=False,
+            zero_init_residual=False)
+
+    def forward(self, x):
+        """Forward function."""
+        out = []
+        x = self.conv1(x)
+        x = self.norm1(x)
+        x = self.relu(x)
+        x = self.conv2(x)
+        x = self.norm2(x)
+        x = self.relu(x)
+        x = self.layer1(x)
+
+        x_list = []
+        for i in range(self.stage2_cfg['num_branches']):
+            if not isinstance(self.transition1[i], nn.Identity):
+                x_list.append(self.transition1[i](x))
+            else:
+                x_list.append(x)
+        y_list = self.stage2(x_list)
+        out.append(y_list[0])
+
+        x_list = []
+        for i in range(self.stage3_cfg['num_branches']):
+            if not isinstance(self.transition2[i], nn.Identity):
+                x_list.append(self.transition2[i](y_list[-1]))
+            else:
+                x_list.append(y_list[i])
+        y_list = self.stage3(x_list)
+        out.append(y_list[0])
+
+        x_list = []
+        for i in range(self.stage4_cfg['num_branches']):
+            if not isinstance(self.transition3[i], nn.Identity):
+                x_list.append(self.transition3[i](y_list[-1]))
+            else:
+                x_list.append(y_list[i])
+        y_list = self.stage4(x_list)
+        out.append(y_list[0])
+
+        return [out]

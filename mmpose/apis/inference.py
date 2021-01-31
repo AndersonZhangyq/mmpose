@@ -485,9 +485,25 @@ def vis_pose_result(model,
         pose_limb_color = palette[[
             0, 0, 0, 0, 7, 7, 7, 9, 9, 9, 9, 9, 16, 16, 16, 16, 16, 16, 16
         ]]
-        pose_kpt_color = palette[[
-            16, 16, 16, 16, 16, 9, 9, 9, 9, 9, 9, 0, 0, 0, 0, 0, 0
-        ]]
+        pose_kpt_color = [
+            [210, 245, 60],  # nose yellow
+            [0, 0, 0],
+            [0, 0, 0],
+            [0, 0, 0],
+            [0, 0, 0],
+            [230, 25, 75],
+            [230, 25, 75],  # shoulder red
+            [60, 180, 75],
+            [60, 180, 75],  # elbow green
+            [0, 130, 200],
+            [0, 130, 200],  # wrist blue
+            [245, 130, 48],
+            [245, 130, 48],  # hip orange
+            [70, 240, 240],
+            [70, 240, 240],  # knee light blue
+            [145, 30, 180],
+            [145, 30, 180]  # ankle purple
+        ]
 
     elif dataset == 'TopDownCocoWholeBodyDataset':
         # show the results

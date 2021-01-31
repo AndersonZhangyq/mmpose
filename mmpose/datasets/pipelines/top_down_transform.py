@@ -198,7 +198,10 @@ class TopDownAffine:
             joints_3d[:, 0:2] = \
                 warp_affine_joints(joints_3d[:, 0:2].copy(), trans)
         else:
-            trans = get_affine_transform(c, s, r, image_size)
+            # trans = get_affine_transform(c, s, r, image_size)
+            # use udp version to get correct input in my point of view
+            print(f"{results['image_file']} {s}")
+            trans = get_warp_matrix(r, c * 2.0, image_size, s * 200.0)
             img = cv2.warpAffine(
                 img,
                 trans, (int(image_size[0]), int(image_size[1])),

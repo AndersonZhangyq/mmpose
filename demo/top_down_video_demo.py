@@ -4,12 +4,31 @@ from argparse import ArgumentParser
 import cv2
 from tqdm import tqdm
 
-from mmpose.apis import (inference_bottom_up_pose_model, init_pose_model,
+from mmpose.apis import (inference_top_down_pose_model, init_pose_model,
                          vis_pose_result)
+
+# from mmdet.apis import inference_detector, init_detector
+
+
+def process_mmdet_results(mmdet_results, cat_id=0):
+    """Process mmdet results, and return a list of bboxes.
+
+    :param mmdet_results:
+    :param cat_id: category id (default: 0 for human)
+    :return: a list of detected bounding boxes
+    """
+    if isinstance(mmdet_results, tuple):
+        det_results = mmdet_results[0]
+    else:
+        det_results = mmdet_results
+    return det_results[cat_id]
 
 
 def main():
-    """Visualize the demo images."""
+    """Visualize the demo images.
+
+    Using mmdet to detect the human.
+    """
     parser = ArgumentParser()
     parser.add_argument('pose_config', help='Config file for pose')
     parser.add_argument('pose_checkpoint', help='Checkpoint file for pose')
@@ -27,18 +46,21 @@ def main():
     parser.add_argument(
         '--device', default='cuda:0', help='Device used for inference')
     parser.add_argument(
-        '--kpt-thr', type=float, default=0.0, help='Keypoint score threshold')
+        '--bbox-thr',
+        type=float,
+        default=0.3,
+        help='Bounding box score threshold')
+    parser.add_argument(
+        '--kpt-thr', type=float, default=0.3, help='Keypoint score threshold')
 
     args = parser.parse_args()
 
     assert args.show or (args.out_video_root != '')
-
     # build the pose model from a config file and a checkpoint file
     pose_model = init_pose_model(
-        args.pose_config, args.pose_checkpoint, device=args.device.lower())
+        args.pose_config, args.pose_checkpoint, device=args.device)
 
     dataset = pose_model.cfg.data['test']['type']
-    assert (dataset == 'BottomUpCocoDataset')
 
     cap = cv2.VideoCapture(args.video_path)
 
@@ -63,6 +85,7 @@ def main():
 
     # e.g. use ('backbone', ) to return backbone feature
     output_layer_names = None
+    i = 0
     frame_count = cap.get(cv2.CAP_PROP_FRAME_COUNT)
     print(frame_count)
     pbar = tqdm(total=frame_count)
@@ -70,10 +93,20 @@ def main():
         flag, img = cap.read()
         if not flag:
             break
+        # test a single image, the resulting box is (x1, y1, x2, y2)
+        mmdet_results = {0: [[0.0, 86.5, 255.73, 240.00, 1]]}
 
-        pose_results, returned_outputs = inference_bottom_up_pose_model(
+        # keep the person class bounding boxes.
+        person_bboxes = process_mmdet_results(mmdet_results)
+
+        # test a single image, with a list of bboxes.
+        pose_results, returned_outputs = inference_top_down_pose_model(
             pose_model,
             img,
+            person_bboxes,
+            bbox_thr=args.bbox_thr,
+            format='xyxy',
+            dataset=dataset,
             return_heatmap=return_heatmap,
             outputs=output_layer_names)
 
@@ -91,7 +124,8 @@ def main():
 
         if save_out_video:
             videoWriter.write(vis_img)
-
+        cv2.imwrite(os.path.join(args.out_video_root, f'{i}.jpg'), vis_img)
+        i += 1
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
         pbar.update()

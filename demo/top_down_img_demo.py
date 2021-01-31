@@ -1,6 +1,7 @@
 import os
 from argparse import ArgumentParser
 
+from tqdm import tqdm
 from xtcocotools.coco import COCO
 
 from mmpose.apis import (inference_top_down_pose_model, init_pose_model,
@@ -57,7 +58,7 @@ def main():
     output_layer_names = None
 
     # process each image
-    for i in range(len(img_keys)):
+    for i in tqdm(range(len(img_keys))):
         # get bounding box annotations
         image_id = img_keys[i]
         image = coco.loadImgs(image_id)[0]

@@ -476,6 +476,7 @@ class TopDownMSMUHead(TopDownBaseHead):
                 loss_func = self.loss
 
             loss_i = loss_func(output[i], target_i, target_weight_i)
+            # losses[f'mse_{i}'] = loss_i
             if 'mse_loss' not in losses:
                 losses['mse_loss'] = loss_i
             else:

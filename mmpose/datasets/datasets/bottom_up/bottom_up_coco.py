@@ -249,7 +249,10 @@ class BottomUpCocoDataset(BottomUpBaseDataset):
         # iterate over images
         for idx, _preds in enumerate(preds):
             str_image_path = image_paths[idx]
-            image_id = self.name2id[os.path.basename(str_image_path)]
+            if ('videoeeg' in str_image_path):
+                image_id = self.name2id[str_image_path]
+            else:
+                image_id = self.name2id[str_image_path[len(self.img_prefix):]]
             # iterate over people
             for idx_person, kpt in enumerate(_preds):
                 # use bbox area

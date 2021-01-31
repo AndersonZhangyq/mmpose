@@ -115,8 +115,15 @@ mmpose/version.py
 *.log.json
 *.npy
 work_dirs/
+output/
+visualization/
+viz/
 
 # Pytorch
 *.pth
 
 *.DS_Store
+person_keypoints_train.json
+person_keypoints_val.json
+
+*.sh

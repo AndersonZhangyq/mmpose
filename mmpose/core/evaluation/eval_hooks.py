@@ -1,3 +1,5 @@
+import heapq
+import os
 import os.path as osp
 from math import inf
 
@@ -6,6 +8,17 @@ from mmcv.runner import Hook
 from torch.utils.data import DataLoader
 
 from mmpose.utils import get_root_logger
+
+
+class Node(object):
+
+    def __init__(self, val, cmp) -> None:
+        super().__init__()
+        self.val = val
+        self.cmp = cmp
+
+    def __gt__(self, other):
+        return self.cmp(self.val[1], other.val[1])
 
 
 class EvalHook(Hook):
@@ -43,6 +56,7 @@ class EvalHook(Hook):
                  save_best=True,
                  key_indicator='AP',
                  rule=None,
+                 max_keep_ckpts=5,
                  **eval_kwargs):
         if not isinstance(dataloader, DataLoader):
             raise TypeError(f'dataloader must be a pytorch DataLoader, '
@@ -72,6 +86,8 @@ class EvalHook(Hook):
         self.save_best = save_best
         self.key_indicator = key_indicator
         self.rule = rule
+        self.max_keep_ckpts = max_keep_ckpts
+        self.eval_scores = []
 
         self.logger = get_root_logger()
 
@@ -99,6 +115,16 @@ class EvalHook(Hook):
         from mmpose.apis import single_gpu_test
         results = single_gpu_test(runner.model, self.dataloader)
         key_score = self.evaluate(runner, results)
+        if len(self.eval_scores) < self.max_keep_ckpts:
+            heapq.heappush(
+                self.eval_scores,
+                Node((current_ckpt_path, key_score), self.compare_func))
+        else:
+            ckpt_path, _ = heapq.heappushpop(
+                self.eval_scores,
+                Node((current_ckpt_path, key_score), self.compare_func)).val
+            if osp.exists(ckpt_path):
+                os.remove(ckpt_path)
         if (self.save_best and self.compare_func(key_score, self.best_score)):
             self.best_score = key_score
             self.logger.info(

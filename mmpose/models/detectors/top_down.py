@@ -259,6 +259,8 @@ class TopDown(BasePose):
                 if pose_kpt_color is not None:
                     assert len(pose_kpt_color) == len(kpts)
                     for kid, kpt in enumerate(kpts):
+                        if kid in [1, 2, 3, 4]:
+                            continue
                         x_coord, y_coord, kpt_score = int(kpt[0]), int(
                             kpt[1]), kpt[2]
                         if kpt_score > kpt_score_thr:
@@ -287,6 +289,8 @@ class TopDown(BasePose):
                 if skeleton is not None and pose_limb_color is not None:
                     assert len(pose_limb_color) == len(skeleton)
                     for sk_id, sk in enumerate(skeleton):
+                        if any([j in [0, 1, 2, 3, 4] for j in sk]):
+                            continue
                         pos1 = (int(kpts[sk[0] - 1, 0]), int(kpts[sk[0] - 1,
                                                                   1]))
                         pos2 = (int(kpts[sk[1] - 1, 0]), int(kpts[sk[1] - 1,

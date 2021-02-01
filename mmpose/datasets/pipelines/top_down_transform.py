@@ -200,7 +200,6 @@ class TopDownAffine:
         else:
             # trans = get_affine_transform(c, s, r, image_size)
             # use udp version to get correct input in my point of view
-            print(f"{results['image_file']} {s}")
             trans = get_warp_matrix(r, c * 2.0, image_size, s * 200.0)
             img = cv2.warpAffine(
                 img,

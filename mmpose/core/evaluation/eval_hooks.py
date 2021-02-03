@@ -96,12 +96,14 @@ class EvalHook(Hook):
             self.best_score = self.init_value_map[self.rule]
 
         self.best_json = dict()
+        self.pending = None
 
     def after_train_epoch(self, runner):
         """Called after every training epoch to evaluate the results."""
         if not self.every_n_epochs(runner, self.interval):
             return
-
+        if self.pending is not None:
+            os.remove(self.pending)
         current_ckpt_path = osp.join(runner.work_dir,
                                      f'epoch_{runner.epoch + 1}.pth')
         json_path = osp.join(runner.work_dir, 'best.json')
@@ -124,7 +126,10 @@ class EvalHook(Hook):
                 self.eval_scores,
                 Node((current_ckpt_path, key_score), self.compare_func)).val
             if osp.exists(ckpt_path):
-                os.remove(ckpt_path)
+                if ckpt_path == current_ckpt_path:
+                    self.pending = ckpt_path
+                else:
+                    os.remove(ckpt_path)
         if (self.save_best and self.compare_func(key_score, self.best_score)):
             self.best_score = key_score
             self.logger.info(

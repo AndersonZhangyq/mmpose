@@ -104,6 +104,7 @@ class EvalHook(Hook):
             return
         if self.pending is not None:
             os.remove(self.pending)
+            self.pending = None
         current_ckpt_path = osp.join(runner.work_dir,
                                      f'epoch_{runner.epoch + 1}.pth')
         json_path = osp.join(runner.work_dir, 'best.json')

@@ -1,5 +1,6 @@
 import cv2
 import numpy as np
+import copy
 
 from mmpose.core.post_processing import (affine_transform, fliplr_joints,
                                          get_affine_transform)
@@ -185,6 +186,8 @@ class TopDownAffine:
         img = results['img']
         joints_3d = results['joints_3d']
         joints_3d_visible = results['joints_3d_visible']
+        results['origin_joints_3d'] = copy.deepcopy(joints_3d)
+        results['origin_joints_3d_visible'] = copy.deepcopy(joints_3d_visible)
         c = results['center']
         s = results['scale']
         r = results['rotation']

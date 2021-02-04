@@ -20,11 +20,9 @@ lr_config = dict(
     step=[170, 200])
 total_epochs = 210
 log_config = dict(
-    interval=50,
-    hooks=[
-        dict(type='TextLoggerHook'),
-        # dict(type='TensorboardLoggerHook')
-    ])
+    interval=10,
+    hooks=[dict(type='TextLoggerHook'),
+           dict(type='TensorboardLoggerHook')])
 
 channel_cfg = dict(
     num_output_channels=17,
@@ -76,14 +74,13 @@ model = dict(
         out_channels=channel_cfg['num_output_channels'],
         num_deconv_layers=0,
         extra=dict(final_conv_kernel=1, ),
-    ),
+        loss_keypoint=dict(type='JointsMSELoss', use_target_weight=True)),
     train_cfg=dict(),
     test_cfg=dict(
         flip_test=True,
-        post_process='default',
+        post_process='unbiased',
         shift_heatmap=True,
-        modulate_kernel=11),
-    loss_pose=dict(type='JointsMSELoss', use_target_weight=True))
+        modulate_kernel=17))
 
 data_cfg = dict(
     image_size=[288, 384],
@@ -96,7 +93,7 @@ data_cfg = dict(
     nms_thr=1.0,
     oks_thr=0.9,
     vis_thr=0.2,
-    use_gt_bbox=False,
+    use_gt_bbox=True,
     det_bbox_thr=0.0,
     bbox_file='data/coco/person_detection_results/'
     'COCO_val2017_detections_AP_H_56_person.json',
@@ -110,14 +107,15 @@ train_pipeline = [
         num_joints_half_body=8,
         prob_half_body=0.3),
     dict(
-        type='TopDownGetRandomScaleRotation', rot_factor=40, scale_factor=0.5),
+        type='TopDownGetRandomScaleRotation', rot_factor=180,
+        scale_factor=0.5),
     dict(type='TopDownAffine'),
     dict(type='ToTensor'),
     dict(
         type='NormalizeTensor',
         mean=[0.485, 0.456, 0.406],
         std=[0.229, 0.224, 0.225]),
-    dict(type='TopDownGenerateTarget', sigma=3),
+    dict(type='TopDownGenerateTarget', sigma=3, unbiased_encoding=True),
     dict(
         type='Collect',
         keys=['img', 'target', 'target_weight'],
@@ -148,24 +146,24 @@ test_pipeline = val_pipeline
 
 data_root = 'data/coco'
 data = dict(
-    samples_per_gpu=64,
-    workers_per_gpu=2,
+    samples_per_gpu=32,
+    workers_per_gpu=4,
     train=dict(
         type='TopDownCocoDataset',
-        ann_file=f'{data_root}/annotations/person_keypoints_train2017.json',
-        img_prefix=f'{data_root}/train2017/',
+        ann_file='data/keypoint_merged_train.json',
+        img_prefix='',
         data_cfg=data_cfg,
         pipeline=train_pipeline),
     val=dict(
         type='TopDownCocoDataset',
-        ann_file=f'{data_root}/annotations/person_keypoints_val2017.json',
-        img_prefix=f'{data_root}/val2017/',
+        ann_file='data/keypoint_merged_val.json',
+        img_prefix='',
         data_cfg=data_cfg,
         pipeline=val_pipeline),
     test=dict(
         type='TopDownCocoDataset',
-        ann_file=f'{data_root}/annotations/person_keypoints_val2017.json',
-        img_prefix=f'{data_root}/val2017/',
+        ann_file='data/keypoint_merged_val.json',
+        img_prefix='',
         data_cfg=data_cfg,
         pipeline=val_pipeline),
 )

@@ -3,13 +3,14 @@ load_from = None
 resume_from = None
 dist_params = dict(backend='nccl')
 workflow = [('train', 1)]
-checkpoint_config = dict(interval=10)
-evaluation = dict(interval=10, metric='mAP', key_indicator='AP')
+checkpoint_config = dict(interval=1)
+evaluation = dict(interval=1, metric='mAP', key_indicator='AP')
 
 optimizer = dict(
     type='Adam',
     lr=5e-4,
 )
+
 optimizer_config = dict(grad_clip=None)
 # learning policy
 lr_config = dict(
@@ -20,12 +21,11 @@ lr_config = dict(
     step=[170, 200])
 total_epochs = 210
 log_config = dict(
-    interval=50,
-    hooks=[
-        dict(type='TextLoggerHook'),
-        # dict(type='TensorboardLoggerHook')
-    ])
+    interval=10,
+    hooks=[dict(type='TextLoggerHook'),
+           dict(type='TensorboardLoggerHook')])
 
+target_type = 'GaussianHeatMap'
 channel_cfg = dict(
     num_output_channels=17,
     dataset_joints=17,
@@ -42,7 +42,7 @@ model = dict(
     pretrained='https://download.openmmlab.com/mmpose/'
     'pretrain_models/hrnet_w32-36af842e.pth',
     backbone=dict(
-        type='HRNet',
+        type='HRNetSeperateStages',
         in_channels=3,
         extra=dict(
             stage1=dict(
@@ -71,19 +71,23 @@ model = dict(
                 num_channels=(32, 64, 128, 256))),
     ),
     keypoint_head=dict(
-        type='TopDownSimpleHead',
-        in_channels=32,
+        type='TopDownMSMUHead',
+        out_shape=(96, 72),
+        unit_channels=32,
         out_channels=channel_cfg['num_output_channels'],
-        num_deconv_layers=0,
-        extra=dict(final_conv_kernel=1, ),
-    ),
-    train_cfg=dict(),
+        num_stages=1,
+        num_units=3,
+        use_prm=False,
+        norm_cfg=dict(type='BN')),
+    train_cfg=dict(loss_weights=[0.25] * 2 + [1]),
     test_cfg=dict(
         flip_test=True,
-        post_process='default',
-        shift_heatmap=True,
-        modulate_kernel=11),
-    loss_pose=dict(type='JointsMSELoss', use_target_weight=True))
+        post_process='megvii',
+        shift_heatmap=False,
+        modulate_kernel=5),
+    # loss_pose=[dict(type='JointsMSELoss', use_target_weight=True)] * 3 +
+    # [dict(type='JointsOHKMMSELoss', use_target_weight=True)])
+    loss_pose=[dict(type='JointsMSELoss', use_target_weight=True)] * 3)
 
 data_cfg = dict(
     image_size=[288, 384],
@@ -93,10 +97,11 @@ data_cfg = dict(
     dataset_channel=channel_cfg['dataset_channel'],
     inference_channel=channel_cfg['inference_channel'],
     soft_nms=False,
+    use_nms=False,
     nms_thr=1.0,
     oks_thr=0.9,
     vis_thr=0.2,
-    use_gt_bbox=False,
+    use_gt_bbox=True,
     det_bbox_thr=0.0,
     bbox_file='data/coco/person_detection_results/'
     'COCO_val2017_detections_AP_H_56_person.json',
@@ -104,20 +109,25 @@ data_cfg = dict(
 
 train_pipeline = [
     dict(type='LoadImageFromFile'),
+    dict(type='TopDownRandomShiftBBox'),
     dict(type='TopDownRandomFlip', flip_prob=0.5),
     dict(
         type='TopDownHalfBodyTransform',
         num_joints_half_body=8,
         prob_half_body=0.3),
     dict(
-        type='TopDownGetRandomScaleRotation', rot_factor=40, scale_factor=0.5),
+        type='TopDownGetRandomScaleRotation', rot_factor=180,
+        scale_factor=0.5),
     dict(type='TopDownAffine'),
     dict(type='ToTensor'),
     dict(
         type='NormalizeTensor',
         mean=[0.485, 0.456, 0.406],
         std=[0.229, 0.224, 0.225]),
-    dict(type='TopDownGenerateTarget', sigma=3),
+    dict(
+        type='TopDownGenerateTarget',
+        kernel=[(9, 9), (7, 7), (5, 5)],
+        encoding='Megvii'),
     dict(
         type='Collect',
         keys=['img', 'target', 'target_weight'],
@@ -148,24 +158,24 @@ test_pipeline = val_pipeline
 
 data_root = 'data/coco'
 data = dict(
-    samples_per_gpu=64,
-    workers_per_gpu=2,
+    samples_per_gpu=32,
+    workers_per_gpu=4,
     train=dict(
         type='TopDownCocoDataset',
-        ann_file=f'{data_root}/annotations/person_keypoints_train2017.json',
-        img_prefix=f'{data_root}/train2017/',
+        ann_file='data/keypoint_merged_train.json',
+        img_prefix='',
         data_cfg=data_cfg,
         pipeline=train_pipeline),
     val=dict(
         type='TopDownCocoDataset',
-        ann_file=f'{data_root}/annotations/person_keypoints_val2017.json',
-        img_prefix=f'{data_root}/val2017/',
+        ann_file='data/keypoint_merged_val.json',
+        img_prefix='',
         data_cfg=data_cfg,
         pipeline=val_pipeline),
     test=dict(
         type='TopDownCocoDataset',
-        ann_file=f'{data_root}/annotations/person_keypoints_val2017.json',
-        img_prefix=f'{data_root}/val2017/',
+        ann_file='data/keypoint_merged_val.json',
+        img_prefix='',
         data_cfg=data_cfg,
         pipeline=val_pipeline),
 )

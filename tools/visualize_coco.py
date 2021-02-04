@@ -6,8 +6,9 @@ from matplotlib import pyplot as plt
 from xtcocotools.coco import COCO
 
 if __name__ == '__main__':
-    coco = COCO('data/keypoint_merged_train.json')
-    os.makedirs('visualization/coco/', exist_ok=True)
+    coco = COCO('data/keypoint_merged_val.json')
+    output_path = "visualization/video_eeg/val/"
+    os.makedirs(output_path, exist_ok=True)
     link_pairs = [
         [15, 13],
         [13, 11],
@@ -59,4 +60,4 @@ if __name__ == '__main__':
         for line in link_pairs:
             cv2.line(img, tuple(keypoints[line[0]][:2]),
                      tuple(keypoints[line[1]][:2]), line_color, 2)
-        cv2.imwrite(f'visualization/coco/{ann_id}.png', img)
+        cv2.imwrite(os.path.join(output_path, f'{ann_id}.png'), img)

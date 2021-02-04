@@ -1,6 +1,7 @@
 import argparse
 import os
 import os.path as osp
+from copy import deepcopy
 
 import mmcv
 import numpy as np
@@ -81,6 +82,8 @@ def main():
         distributed = True
         init_dist(args.launcher, **cfg.dist_params)
 
+    # collect gt
+    cfg.data.test.pipeline[-1]['meta_keys'].extend(['origin_joints_3d', 'origin_joints_3d_visible'])
     # build the dataloader
     dataset = build_dataset(cfg.data.test, dict(test_mode=True))
     dataloader_setting = dict(
@@ -112,6 +115,12 @@ def main():
         for data in data_loader:
             img_metas = data['img_metas'].data[0][0]
             image_name = img_metas['image_file']
+
+            # get gt
+            gt_pose = img_metas['origin_joints_3d']
+            gt_pose_vis = img_metas['origin_joints_3d_visible'][:, 0]
+            gt_pose[:, -1] = gt_pose_vis
+
             # continue
             center = np.array(img_metas['center'], dtype=np.float)
             scale = np.array(img_metas['scale'], dtype=np.float)
@@ -134,6 +143,12 @@ def main():
                 dataset=cfg.data['test']['type'],
                 return_heatmap=False,
                 outputs=None)
+            # add gt to result, only useable in single person case
+            gt_result = deepcopy(pose_results[0])
+            gt_result['keypoints'] = gt_pose
+
+            pose_results.append(gt_result)
+
             vis_pose_result(
                 model,
                 image_name,

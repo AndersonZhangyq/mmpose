@@ -1,3 +1,4 @@
 from .gap_neck import GlobalAveragePooling
+from .transformer import Transformer
 
-__all__ = ['GlobalAveragePooling']
+__all__ = ['GlobalAveragePooling', 'Transformer']

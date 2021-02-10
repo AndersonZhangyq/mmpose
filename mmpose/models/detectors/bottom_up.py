@@ -33,6 +33,7 @@ class BottomUp(BasePose):
     def __init__(self,
                  backbone,
                  keypoint_head=None,
+                 neck=None,
                  train_cfg=None,
                  test_cfg=None,
                  pretrained=None,
@@ -40,6 +41,7 @@ class BottomUp(BasePose):
         super().__init__()
 
         self.backbone = builder.build_backbone(backbone)
+        self.neck = torch.nn.Identity if neck is None else builder.build_neck(neck)
 
         if keypoint_head is not None:
 
@@ -158,6 +160,7 @@ class BottomUp(BasePose):
         """
 
         output = self.backbone(img)
+        output = neck_output = self.neck(output)
 
         if self.with_keypoint:
             output = self.keypoint_head(output)
@@ -183,6 +186,7 @@ class BottomUp(BasePose):
             Tensor: Outputs.
         """
         output = self.backbone(img)
+        output = neck_output = self.neck(output)
         if self.with_keypoint:
             output = self.keypoint_head(output)
         return output
@@ -224,6 +228,7 @@ class BottomUp(BasePose):
             image_resized = aug_data[idx].to(img.device)
 
             features = self.backbone(image_resized)
+            features = features_neck = self.neck(features)
             if self.with_keypoint:
                 outputs = self.keypoint_head(features)
 
@@ -231,6 +236,7 @@ class BottomUp(BasePose):
                 # use flip test
                 features_flipped = self.backbone(
                     torch.flip(image_resized, [3]))
+                features_flipped = features_flipped_neck = self.neck(features_flipped)
                 if self.with_keypoint:
                     outputs_flipped = self.keypoint_head(features_flipped)
             else:

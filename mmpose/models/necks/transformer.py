@@ -6,8 +6,6 @@ import torch.nn.functional as F
 from torch import Tensor
 from typing import Optional
 
-from .. import builder
-from mmpose.models.builder import build_loss
 from ..registry import NECKS
 
 

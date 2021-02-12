@@ -207,8 +207,6 @@ class Transformer(nn.Module):
     """
 
     def __init__(self,
-                 in_channels,
-                 out_channels,
                  dim_model=64,
                  dim_feedforward=128,
                  n_head=1,
@@ -216,7 +214,6 @@ class Transformer(nn.Module):
                  heatmap_size=[64, 48]):
         super().__init__()
 
-        self.in_channels = in_channels
         self.dim_model = dim_model
         self.dim_feedforward = dim_feedforward
         self.n_head = n_head
@@ -297,7 +294,7 @@ class HRNetForTranspose(nn.Module):
 
     def __init__(self,
                  extra,
-                 transformer_config=dict(),
+                 transformer_cfg=dict(),
                  in_channels=3,
                  conv_cfg=None,
                  norm_cfg=dict(type='BN'),
@@ -379,13 +376,10 @@ class HRNetForTranspose(nn.Module):
         self.stage3, pre_stage_channels = self._make_stage(
             self.stage3_cfg, num_channels)
 
-        # # stage 4
-        # self.stage4_cfg = self.extra['stage4']
-        # num_channels = {32: 64, 24: 92}[self.stage4_cfg['num_channels'][0]]
-        self.final_conv = nn.Conv2d(
-            pre_stage_channels[0], num_channels, kernel_size=1, stride=1)
+        self.match_dim = nn.Conv2d(pre_stage_channels[0],
+                                   transformer_cfg['dim_model'], 1)
 
-        self.global_encoder = Transformer()
+        self.global_encoder = Transformer(**transformer_cfg)
 
     @property
     def norm1(self):
@@ -563,9 +557,8 @@ class HRNetForTranspose(nn.Module):
                 x_list.append(y_list[i])
         y_list = self.stage3(x_list)
 
-        global_context = self.global_encoder(y_list[0])
-
-        output = self.final_conv(global_context)
+        feature = self.match_dim(y_list[0])
+        output = self.global_encoder(feature)
 
         return output
 

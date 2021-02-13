@@ -284,8 +284,8 @@ class DeformableTransformerEncoderLayer(nn.Module):
 
     def forward_post(self,
                      src,
-                     reference_points, 
-                     spatial_shapes, 
+                     reference_points,
+                     spatial_shapes,
                      level_start_index,
                      src_mask: Optional[Tensor] = None,
                      src_key_padding_mask: Optional[Tensor] = None,
@@ -293,14 +293,10 @@ class DeformableTransformerEncoderLayer(nn.Module):
         q = self.with_pos_embed(src, pos)
         if self.return_atten_map:
             src2, att_map = self.self_attn(
-                q, reference_points, src, spatial_shapes, level_start_index,
-                attn_mask=src_mask,
-                key_padding_mask=src_key_padding_mask)
+                q, reference_points, src, spatial_shapes, level_start_index)
         else:
             src2 = self.self_attn(
-                q, reference_points, src, spatial_shapes, level_start_index,
-                attn_mask=src_mask,
-                key_padding_mask=src_key_padding_mask)[0]
+                q, reference_points, src, spatial_shapes, level_start_index)[0]
         src = src + self.dropout1(src2)
         src = self.norm1(src)
         src2 = self.linear2(self.dropout(self.activation(self.linear1(src))))
@@ -313,8 +309,8 @@ class DeformableTransformerEncoderLayer(nn.Module):
 
     def forward_pre(self,
                     src,
-                    reference_points, 
-                    spatial_shapes, 
+                    reference_points,
+                    spatial_shapes,
                     level_start_index,
                     src_mask: Optional[Tensor] = None,
                     src_key_padding_mask: Optional[Tensor] = None,
@@ -342,8 +338,8 @@ class DeformableTransformerEncoderLayer(nn.Module):
 
     def forward(self,
                 src,
-                reference_points, 
-                spatial_shapes, 
+                reference_points,
+                spatial_shapes,
                 level_start_index,
                 src_mask: Optional[Tensor] = None,
                 src_key_padding_mask: Optional[Tensor] = None,
@@ -454,19 +450,32 @@ class Transformer(nn.Module):
             (pos_y[:, :, :, 0::2].sin(), pos_y[:, :, :, 1::2].cos()),
             dim=4).flatten(3)
         pos = torch.cat((pos_y, pos_x), dim=3).permute(0, 3, 1, 2)
-        pos = pos.flatten(2).permute(2, 0, 1)
-        return pos  # [h*w, 1, d_model]
+        return pos  # [1, d_model, h, w]
 
-    def forward(self, x):
+    def forward(self, srcs):
         """Forward function."""
-        if isinstance(x, list):
-            x = x[0]
-        bs, d, w, h = x.shape
-        x = x.flatten(2).permute(2, 0, 1)
 
-        output = self.transformer_encoders(x, pos=self.pe)  # [h*w, bs, d]
-        output_reshaped = output.permute(1, 2, 0)
-        output_reshaped = output_reshaped.reshape(bs, d, w, h)
+        src_flatten = []
+        lvl_pos_embed_flatten = []
+        spatial_shapes = []
+        for lvl, (src, pos_embed) in enumerate(zip(srcs, [self.pe for _ in srcs])):
+            bs, c, h, w = src.shape
+            spatial_shape = (h, w)
+            spatial_shapes.append(spatial_shape)
+            src = src.flatten(2).transpose(1, 2) # bs, h*w, c
+            pos_embed = pos_embed.flatten(2).transpose(1, 2)
+            lvl_pos_embed = pos_embed + self.level_embed[lvl].view(1, 1, -1)
+            lvl_pos_embed_flatten.append(lvl_pos_embed)
+            src_flatten.append(src)
+        src_flatten = torch.cat(src_flatten, 1)
+        lvl_pos_embed_flatten = torch.cat(lvl_pos_embed_flatten, 1)
+        spatial_shapes = torch.as_tensor(spatial_shapes, dtype=torch.long, device=src_flatten.device)
+        level_start_index = torch.cat((spatial_shapes.new_zeros((1, )), spatial_shapes.prod(1).cumsum(0)[:-1]))
+        valid_ratios = torch.stack([torch.ones((bs, 2), device=src_flatten.device) for _ in srcs], 1)
+
+        output = self.transformer_encoders(src_flatten, spatial_shapes, level_start_index, valid_ratios, pos=lvl_pos_embed_flatten)
+        output_reshaped = output.transpose(1, 2)
+        output_reshaped = output_reshaped.reshape(bs, c, h, w)
         return output_reshaped
 
 
@@ -741,7 +750,7 @@ class HRNetForTransposeDeform(nn.Module):
         y_list = self.stage3(x_list)
 
         feature = self.match_dim(y_list[0])
-        output = self.global_encoder(feature)
+        output = self.global_encoder([feature])
 
         return output
 

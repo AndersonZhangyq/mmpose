@@ -278,12 +278,12 @@ class Transformer(nn.Module):
         """Forward function."""
         if isinstance(x, list):
             x = x[0]
-        bs, d, w, h = x.shape
+        bs, d, h, w = x.shape
         x = x.flatten(2).permute(2, 0, 1)
 
         output = self.transformer_encoders(x, pos=self.pe)  # [h*w, bs, d]
         output_reshaped = output.permute(1, 2, 0)
-        output_reshaped = output_reshaped.reshape(bs, d, w, h)
+        output_reshaped = output_reshaped.reshape(bs, d, h, w)
         return output_reshaped
 
 

@@ -10,7 +10,7 @@ from mmcv.cnn import (build_conv_layer, build_norm_layer, constant_init,
 from torch import Tensor
 from torch.autograd import Function
 from torch.autograd.function import once_differentiable
-from torch.nn.init import constant_, xavier_uniform_
+from torch.nn.init import constant_, normal_, xavier_uniform_
 from torch.nn.modules.batchnorm import _BatchNorm
 from typing import Optional
 
@@ -255,14 +255,16 @@ class DeformableTransformerEncoderLayer(nn.Module):
 
     def __init__(self,
                  d_model,
-                 nhead,
+                 n_head,
+                 n_levels,
+                 n_points,
                  dim_feedforward=2048,
                  dropout=0.1,
                  activation="relu",
                  normalize_before=False,
                  return_atten_map=False):
         super().__init__()
-        self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
+        self.self_attn = MSDeformAttn(d_model, n_levels, n_head, n_points)
 
         self.linear1 = nn.Linear(d_model, dim_feedforward)
         self.dropout = nn.Dropout(dropout)
@@ -282,22 +284,21 @@ class DeformableTransformerEncoderLayer(nn.Module):
 
     def forward_post(self,
                      src,
+                     reference_points, 
+                     spatial_shapes, 
+                     level_start_index,
                      src_mask: Optional[Tensor] = None,
                      src_key_padding_mask: Optional[Tensor] = None,
                      pos: Optional[Tensor] = None):
-        q = k = self.with_pos_embed(src, pos)
+        q = self.with_pos_embed(src, pos)
         if self.return_atten_map:
             src2, att_map = self.self_attn(
-                q,
-                k,
-                value=src,
+                q, reference_points, src, spatial_shapes, level_start_index,
                 attn_mask=src_mask,
                 key_padding_mask=src_key_padding_mask)
         else:
             src2 = self.self_attn(
-                q,
-                k,
-                value=src,
+                q, reference_points, src, spatial_shapes, level_start_index,
                 attn_mask=src_mask,
                 key_padding_mask=src_key_padding_mask)[0]
         src = src + self.dropout1(src2)
@@ -312,23 +313,22 @@ class DeformableTransformerEncoderLayer(nn.Module):
 
     def forward_pre(self,
                     src,
+                    reference_points, 
+                    spatial_shapes, 
+                    level_start_index,
                     src_mask: Optional[Tensor] = None,
                     src_key_padding_mask: Optional[Tensor] = None,
                     pos: Optional[Tensor] = None):
         src2 = self.norm1(src)
-        q = k = self.with_pos_embed(src2, pos)
+        q = self.with_pos_embed(src2, pos)
         if self.return_atten_map:
             src2, att_map = self.self_attn(
-                q,
-                k,
-                value=src,
+                q, reference_points, src, spatial_shapes, level_start_index,
                 attn_mask=src_mask,
                 key_padding_mask=src_key_padding_mask)
         else:
             src2 = self.self_attn(
-                q,
-                k,
-                value=src,
+                q, reference_points, src, spatial_shapes, level_start_index,
                 attn_mask=src_mask,
                 key_padding_mask=src_key_padding_mask)[0]
         src = src + self.dropout1(src2)
@@ -342,12 +342,15 @@ class DeformableTransformerEncoderLayer(nn.Module):
 
     def forward(self,
                 src,
+                reference_points, 
+                spatial_shapes, 
+                level_start_index,
                 src_mask: Optional[Tensor] = None,
                 src_key_padding_mask: Optional[Tensor] = None,
                 pos: Optional[Tensor] = None):
         if self.normalize_before:
-            return self.forward_pre(src, src_mask, src_key_padding_mask, pos)
-        return self.forward_post(src, src_mask, src_key_padding_mask, pos)
+            return self.forward_pre(src, reference_points, spatial_shapes, level_start_index, src_mask, src_key_padding_mask, pos)
+        return self.forward_post(src, reference_points, spatial_shapes, level_start_index, src_mask, src_key_padding_mask, pos)
 
 
 class Transformer(nn.Module):
@@ -373,21 +376,39 @@ class Transformer(nn.Module):
                  dim_feedforward=128,
                  n_head=1,
                  n_encoder_layers=4,
+                 num_feature_levels=1,
+                 n_points=4,
                  heatmap_size=[64, 48]):
         super().__init__()
 
         self.dim_model = dim_model
         self.dim_feedforward = dim_feedforward
         self.n_head = n_head
+        self.num_feature_levels = num_feature_levels
+        self.n_points = n_points
         self.n_encoder_layers = n_encoder_layers
         self.heatmap_size = heatmap_size
         self.transformer_encoders = DeformableTransformerEncoder(
             DeformableTransformerEncoderLayer(self.dim_model, self.n_head,
-                                    self.dim_feedforward),
+                        self.num_feature_levels, self.n_points, self.dim_feedforward),
             self.n_encoder_layers)
+        self.level_embed = nn.Parameter(torch.Tensor(num_feature_levels, dim_model))
+        self.reference_points = nn.Linear(dim_model, 2)
+        self._reset_parameters()
         self.register_buffer(
             'pe',
             self._make_position_embedding(*self.heatmap_size, self.dim_model))
+
+    def _reset_parameters(self):
+        for p in self.parameters():
+            if p.dim() > 1:
+                nn.init.xavier_uniform_(p)
+        for m in self.modules():
+            if isinstance(m, MSDeformAttn):
+                m._reset_parameters()
+        xavier_uniform_(self.reference_points.weight.data, gain=1.0)
+        constant_(self.reference_points.bias.data, 0.)
+        normal_(self.level_embed)
 
     def _make_position_embedding(self, w, h, d_model, pe_type='sine'):
         assert pe_type in ['none', 'learnable', 'sine']

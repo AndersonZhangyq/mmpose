@@ -10,7 +10,6 @@ optimizer = dict(
     type='Adam',
     lr=5e-4,
 )
-
 optimizer_config = dict(grad_clip=None)
 # learning policy
 lr_config = dict(
@@ -82,11 +81,10 @@ model = dict(
     train_cfg=dict(loss_weights=[0.25] * 2 + [1]),
     test_cfg=dict(
         flip_test=True,
-        post_process='megvii',
-        shift_heatmap=False,
+        post_process='unbiased',
+        shift_heatmap=True,
         modulate_kernel=5),
-    # loss_pose=[dict(type='JointsMSELoss', use_target_weight=True)] * 3 +
-    # [dict(type='JointsOHKMMSELoss', use_target_weight=True)])
+    # loss_pose=dict(type='JointsMSELoss', use_target_weight=True))
     loss_pose=[dict(type='JointsMSELoss', use_target_weight=True)] * 2 +
     [dict(type='JointsOHKMMSELoss', use_target_weight=True)])
 
@@ -98,7 +96,6 @@ data_cfg = dict(
     dataset_channel=channel_cfg['dataset_channel'],
     inference_channel=channel_cfg['inference_channel'],
     soft_nms=False,
-    use_nms=False,
     nms_thr=1.0,
     oks_thr=0.9,
     vis_thr=0.2,
@@ -123,10 +120,7 @@ train_pipeline = [
         type='NormalizeTensor',
         mean=[0.485, 0.456, 0.406],
         std=[0.229, 0.224, 0.225]),
-    dict(
-        type='TopDownGenerateTarget',
-        kernel=[(9, 9), (7, 7), (5, 5)],
-        encoding='Megvii'),
+    dict(type='TopDownGenerateTarget', sigma=[1.7, 1.4, 1.1], unbiased_encoding=True),
     dict(
         type='Collect',
         keys=['img', 'target', 'target_weight'],

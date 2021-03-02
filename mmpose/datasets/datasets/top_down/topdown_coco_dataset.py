@@ -329,7 +329,7 @@ class TopDownCocoDataset(TopDownBaseDataset):
             dict: Evaluation results for evaluation metric.
         """
         metrics = metric if isinstance(metric, list) else [metric]
-        allowed_metrics = ['mAP']
+        allowed_metrics = ['mAP', 'PCK']
         for metric in metrics:
             if metric not in allowed_metrics:
                 raise KeyError(f'metric {metric} is not supported')
@@ -389,8 +389,103 @@ class TopDownCocoDataset(TopDownBaseDataset):
         self._write_coco_keypoint_results(valid_kpts, res_file)
 
         info_str = self._do_python_keypoint_eval(res_file)
+
+        # if 'PCK' in metrics:
+        if True:
+            pck_info_str = self._compute_pck(self.coco.anno_file[0], res_file)
+            info_str += pck_info_str
+
         name_value = OrderedDict(info_str)
 
+        return name_value
+
+    def _compute_pck(self, gt_file, preds_file):
+        SC_BIAS = 0.6
+        threshold = 0.5
+        gt_dict = json.load(open(gt_file))
+        preds = json.load(open(preds_file))
+        gt_kpt = []
+        for item in gt_dict['annotations']:
+            if 'keypoints' not in item:
+                continue
+            if max(item['keypoints']) == 0:
+                continue
+            if 'num_keypoints' in item and item['num_keypoints'] == 0:
+                continue
+            gt_kpt.append(item)
+        single_anno_imgs = set()
+        for item in gt_kpt:
+            if (item['image_id'] in single_anno_imgs):
+                single_anno_imgs.remove(item['image_id'])
+            else:
+                single_anno_imgs.add(item['image_id'])
+        gt_single = {
+            item['image_id']: (item['keypoints'], item['bbox'])
+            for item in gt_dict['annotations']
+            if item['image_id'] in single_anno_imgs
+        }
+        pred_single = {
+            item['image_id']: item['keypoints']
+            for item in preds if item['image_id'] in single_anno_imgs
+        }
+        assert len(gt_single) == len(pred_single)
+        assert sorted(gt_single.keys()) == sorted(pred_single.keys())
+        gt_scale = np.array(
+            [item[1][1][-2:] for item in sorted(gt_single.items())])
+        size_scale = np.linalg.norm(gt_scale, axis=1)
+        gt_kpt = np.array([item[1][0] for item in sorted(gt_single.items())])
+        gt_kpt = gt_kpt.reshape(-1, 17, 3)
+        gt_kpt_visibility = gt_kpt[:, :, -1]
+        gt_kpt_pos = gt_kpt[:, :, :-1]
+
+        pred_kpt = np.array([item[1] for item in sorted(pred_single.items())
+                            ]).reshape(-1, 3, 17)
+        pred_kpt = pred_kpt.reshape(-1, 17, 3)
+        pred_kpt_pos = pred_kpt[:, :, :-1]
+        dataset_joints = np.array(gt_dict['categories'][0]['keypoints'])
+
+        jnt_missing = (gt_kpt_visibility == 0).astype(int).T
+        pos_gt_src = np.transpose(gt_kpt_pos, [1, 2, 0])
+        pos_pred_src = np.transpose(pred_kpt_pos, [1, 2, 0])
+        nose = np.where(dataset_joints == 'nose')[0]
+        leye = np.where(dataset_joints == 'left_eye')[0]
+        reye = np.where(dataset_joints == 'right_eye')[0]
+        lear = np.where(dataset_joints == 'left_ear')[0]
+        rear = np.where(dataset_joints == 'right_ear')[0]
+        lsho = np.where(dataset_joints == 'left_shoulder')[0]
+        lelb = np.where(dataset_joints == 'left_elbow')[0]
+        lwri = np.where(dataset_joints == 'left_wrist')[0]
+        lhip = np.where(dataset_joints == 'left_hip')[0]
+        lkne = np.where(dataset_joints == 'left_knee')[0]
+        lank = np.where(dataset_joints == 'left_ankle')[0]
+        rsho = np.where(dataset_joints == 'left_shoulder')[0]
+        relb = np.where(dataset_joints == 'right_elbow')[0]
+        rwri = np.where(dataset_joints == 'right_wrist')[0]
+        rkne = np.where(dataset_joints == 'right_knee')[0]
+        rank = np.where(dataset_joints == 'right_ankle')[0]
+        rhip = np.where(dataset_joints == 'right_hip')[0]
+        jnt_visible = 1 - jnt_missing
+        uv_error = pos_pred_src - pos_gt_src
+        uv_err = np.linalg.norm(uv_error, axis=1)
+        size_scale *= SC_BIAS
+        scale = size_scale * np.ones((len(uv_err), 1), dtype=np.float32)
+        scaled_uv_err = uv_err / scale
+        scaled_uv_err = scaled_uv_err * jnt_visible
+        jnt_count = np.sum(jnt_visible, axis=1)
+        less_than_threshold = (scaled_uv_err <= threshold) * jnt_visible
+        PCKh = 100. * np.sum(less_than_threshold, axis=1) / jnt_count
+        jnt_ratio = jnt_count / np.sum(jnt_count).astype(np.float64)
+
+        name_value = [('Nose', PCKh[nose]),
+                    ('Eye', 0.5 * (PCKh[leye] + PCKh[reye])),
+                    ('Ear', 0.5 * (PCKh[lear] + PCKh[reye])),
+                    ('Shoulder', 0.5 * (PCKh[lsho] + PCKh[rsho])),
+                    ('Elbow', 0.5 * (PCKh[lelb] + PCKh[relb])),
+                    ('Wrist', 0.5 * (PCKh[lwri] + PCKh[rwri])),
+                    ('Hip', 0.5 * (PCKh[lhip] + PCKh[rhip])),
+                    ('Knee', 0.5 * (PCKh[lkne] + PCKh[rkne])),
+                    ('Ankle', 0.5 * (PCKh[lank] + PCKh[rank])),
+                    ('PCKh', np.sum(PCKh * jnt_ratio))]
         return name_value
 
     def _write_coco_keypoint_results(self, keypoints, res_file):

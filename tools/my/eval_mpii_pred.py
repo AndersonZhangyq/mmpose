@@ -1,5 +1,5 @@
 from collections import OrderedDict
-
+import json
 import numpy as np
 from scipy.io import loadmat
 
@@ -108,5 +108,55 @@ def find_lower(
     mask.sum(axis=0)
 
 
+
+def _compute_pck(self, gt_file, preds_file):
+    SC_BIAS = 0.6
+    threshold = 0.5
+    gt_dict = json.load(open(gt_file))
+    preds = json.load(open(preds_file))
+    dataset_joints = gt_dict['categories'][0]['keypoints']
+    jnt_missing = gt_dict['jnt_missing']
+    pos_gt_src = gt_dict['pos_gt_src']
+    headboxes_src = gt_dict['headboxes_src']
+    pos_pred_src = np.transpose(preds, [1, 2, 0])
+    nose = np.where(dataset_joints == 'nose')[1][0]
+    leye = np.where(dataset_joints == 'left_eye')[1][0]
+    reye = np.where(dataset_joints == 'right_eye')[1][0]
+    lear = np.where(dataset_joints == 'left_ear')[1][0]
+    rear = np.where(dataset_joints == 'right_ear')[1][0]
+    lsho = np.where(dataset_joints == 'left_shoulder')[1][0]
+    lelb = np.where(dataset_joints == 'left_elbow')[1][0]
+    lwri = np.where(dataset_joints == 'left_wrist')[1][0]
+    lhip = np.where(dataset_joints == 'left_hip')[1][0]
+    lkne = np.where(dataset_joints == 'left_knee')[1][0]
+    lank = np.where(dataset_joints == 'left_ankle')[1][0]
+    rsho = np.where(dataset_joints == 'left_shoulder')[1][0]
+    relb = np.where(dataset_joints == 'right_elbow')[1][0]
+    rwri = np.where(dataset_joints == 'right_wrist')[1][0]
+    rkne = np.where(dataset_joints == 'right_knee')[1][0]
+    rank = np.where(dataset_joints == 'right_ankle')[1][0]
+    rhip = np.where(dataset_joints == 'right_hip')[1][0]
+    jnt_visible = 1 - jnt_missing
+    uv_error = pos_pred_src - pos_gt_src
+    uv_err = np.linalg.norm(uv_error, axis=1)
+    headsizes = headboxes_src[1, :, :] - headboxes_src[0, :, :]
+    headsizes = np.linalg.norm(headsizes, axis=0)
+    headsizes *= SC_BIAS
+    scale = headsizes * np.ones((len(uv_err), 1), dtype=np.float32)
+    scaled_uv_err = uv_err / scale
+    scaled_uv_err = scaled_uv_err * jnt_visible
+    jnt_count = np.sum(jnt_visible, axis=1)
+    less_than_threshold = (scaled_uv_err <= threshold) * jnt_visible
+    PCKh = 100. * np.sum(less_than_threshold, axis=1) / jnt_count
+
+    name_value = [('Head', PCKh[head]),
+                      ('Shoulder', 0.5 * (PCKh[lsho] + PCKh[rsho])),
+                      ('Elbow', 0.5 * (PCKh[lelb] + PCKh[relb])),
+                      ('Wrist', 0.5 * (PCKh[lwri] + PCKh[rwri])),
+                      ('Hip', 0.5 * (PCKh[lhip] + PCKh[rhip])),
+                      ('Knee', 0.5 * (PCKh[lkne] + PCKh[rkne])),
+                      ('Ankle', 0.5 * (PCKh[lank] + PCKh[rank])),
+                      ('PCKh', np.sum(PCKh * jnt_ratio)),
 if __name__ == '__main__':
     find_lower()
+find_lower()

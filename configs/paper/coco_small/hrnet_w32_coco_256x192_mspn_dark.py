@@ -3,8 +3,8 @@ load_from = None
 resume_from = None
 dist_params = dict(backend='nccl')
 workflow = [('train', 1)]
-checkpoint_config = dict(interval=1)
-evaluation = dict(interval=1, metric='mAP', key_indicator='AP')
+checkpoint_config = dict(interval=5)
+evaluation = dict(interval=5, metric='mAP', key_indicator='AP')
 
 optimizer = dict(
     type='Adam',
@@ -152,7 +152,7 @@ test_pipeline = val_pipeline
 
 data_root = 'data/coco'
 data = dict(
-    samples_per_gpu=32,
+    samples_per_gpu=48,
     workers_per_gpu=4,
     train=dict(
         type='TopDownCocoDataset',

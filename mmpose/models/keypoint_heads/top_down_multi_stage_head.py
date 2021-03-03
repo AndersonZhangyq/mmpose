@@ -411,6 +411,7 @@ class TopDownMSMUHead(TopDownBaseHead):
                  num_units=4,
                  use_prm=False,
                  norm_cfg=dict(type='BN'),
+                 selected_stage=-1,
                  loss_keypoint=None,
                  train_cfg=None,
                  test_cfg=None):
@@ -421,7 +422,8 @@ class TopDownMSMUHead(TopDownBaseHead):
         self.train_cfg = {} if train_cfg is None else train_cfg
         self.test_cfg = {} if test_cfg is None else test_cfg
         self.target_type = self.test_cfg.get('target_type', 'GaussianHeatMap')
-
+        self.selected_stage = selected_stage
+        print(selected_stage)
         self.out_shape = out_shape
         self.unit_channels = unit_channels
         self.out_channels = out_channels
@@ -547,7 +549,7 @@ class TopDownMSMUHead(TopDownBaseHead):
         """
         output = self.forward(x)
         assert isinstance(output, list)
-        output = output[-1]
+        output = output[self.selected_stage]
         if flip_pairs is not None:
             output_heatmap = flip_back(
                 output.detach().cpu().numpy(),

@@ -374,10 +374,10 @@ class HRNetForTranspose(nn.Module):
         self.transition2 = self._make_transition_layer(pre_stage_channels,
                                                        num_channels)
         self.stage3, pre_stage_channels = self._make_stage(
-            self.stage3_cfg, num_channels)
+            self.stage3_cfg, num_channels, multiscale_output=False)
 
         self.match_dim = nn.Conv2d(pre_stage_channels[0],
-                                   transformer_cfg['dim_model'], 1)
+                                   transformer_cfg['dim_model'], 1, bias=False)
 
         self.global_encoder = Transformer(**transformer_cfg)
 

@@ -392,8 +392,9 @@ class TopDownCocoDataset(TopDownBaseDataset):
 
         # if 'PCK' in metrics:
         if True:
-            pck_info_str = self._compute_pck_single_peron(self.coco.anno_file[0], res_file)
-            info_str += pck_info_str
+            pck_info_str_single = self._compute_pck_single_peron(self.coco.anno_file[0], res_file)
+            pck_info_str = self._compute_pck(res_file)
+            info_str += pck_info_str + pck_info_str_single
 
         name_value = OrderedDict(info_str)
 
@@ -443,6 +444,80 @@ class TopDownCocoDataset(TopDownBaseDataset):
         pred_kpt = pred_kpt.reshape(-1, 17, 3)
         pred_kpt_pos = pred_kpt[:, :, :-1]
         dataset_joints = np.array(gt_dict['categories'][0]['keypoints'])
+
+        jnt_missing = (gt_kpt_visibility == 0).astype(int).T
+        pos_gt_src = np.transpose(gt_kpt_pos, [1, 2, 0])
+        pos_pred_src = np.transpose(pred_kpt_pos, [1, 2, 0])
+        nose = np.where(dataset_joints == 'nose')[0]
+        leye = np.where(dataset_joints == 'left_eye')[0]
+        reye = np.where(dataset_joints == 'right_eye')[0]
+        lear = np.where(dataset_joints == 'left_ear')[0]
+        rear = np.where(dataset_joints == 'right_ear')[0]
+        lsho = np.where(dataset_joints == 'left_shoulder')[0]
+        lelb = np.where(dataset_joints == 'left_elbow')[0]
+        lwri = np.where(dataset_joints == 'left_wrist')[0]
+        lhip = np.where(dataset_joints == 'left_hip')[0]
+        lkne = np.where(dataset_joints == 'left_knee')[0]
+        lank = np.where(dataset_joints == 'left_ankle')[0]
+        rsho = np.where(dataset_joints == 'left_shoulder')[0]
+        relb = np.where(dataset_joints == 'right_elbow')[0]
+        rwri = np.where(dataset_joints == 'right_wrist')[0]
+        rkne = np.where(dataset_joints == 'right_knee')[0]
+        rank = np.where(dataset_joints == 'right_ankle')[0]
+        rhip = np.where(dataset_joints == 'right_hip')[0]
+        jnt_visible = 1 - jnt_missing
+        uv_error = pos_pred_src - pos_gt_src
+        uv_err = np.linalg.norm(uv_error, axis=1)
+        size_scale *= SC_BIAS
+        scale = size_scale * np.ones((len(uv_err), 1), dtype=np.float32)
+        scaled_uv_err = uv_err / scale
+        scaled_uv_err = scaled_uv_err * jnt_visible
+        jnt_count = np.sum(jnt_visible, axis=1)
+        less_than_threshold = (scaled_uv_err <= threshold) * jnt_visible
+        PCKh = 100. * np.sum(less_than_threshold, axis=1) / jnt_count
+        jnt_ratio = jnt_count / np.sum(jnt_count).astype(np.float64)
+
+        name_value = [('Nose_single', PCKh[nose]),
+                    ('Eye_single', 0.5 * (PCKh[leye] + PCKh[reye])),
+                    ('Ear_single', 0.5 * (PCKh[lear] + PCKh[reye])),
+                    ('Shoulder_single', 0.5 * (PCKh[lsho] + PCKh[rsho])),
+                    ('Elbow_single', 0.5 * (PCKh[lelb] + PCKh[relb])),
+                    ('Wrist_single', 0.5 * (PCKh[lwri] + PCKh[rwri])),
+                    ('Hip_single', 0.5 * (PCKh[lhip] + PCKh[rhip])),
+                    ('Knee_single', 0.5 * (PCKh[lkne] + PCKh[rkne])),
+                    ('Ankle_single', 0.5 * (PCKh[lank] + PCKh[rank])),
+                    ('PCKh_single', np.sum(PCKh * jnt_ratio))]
+        return name_value
+
+    def _compute_pck(self, preds_file):
+        SC_BIAS = 0.6
+        threshold = 0.5
+        gt_dict = self.db
+        preds = json.load(open(preds_file))
+        gt_single = {
+            (self.name2id[os.path.basename(item['image_file'])], item['bbox_id']): (item['joints_3d'], item['joints_3d_visible'], item['bbox'])
+            for item in gt_dict
+        }
+        pred_single = {
+            (item['image_id'], item['bbox_id']): item['keypoints']
+            for item in preds
+        }
+        assert len(gt_single) == len(pred_single)
+        assert sorted(gt_single.keys()) == sorted(pred_single.keys())
+        gt_scale = np.array(
+            [item[2][-2:] for _, item in sorted(gt_single.items())])
+        size_scale = np.linalg.norm(gt_scale, axis=1)
+        gt_kpt = np.array([item[0] for _, item in sorted(gt_single.items())])
+        gt_kpt = gt_kpt.reshape(-1, 17, 3)
+        gt_kpt_pos = gt_kpt[:, :, :-1]
+        gt_kpt_visibility = np.array(
+            [item[1][:, 0] for _, item in sorted(gt_single.items())])
+
+        pred_kpt = np.array([item for _, item in sorted(pred_single.items())
+                            ]).reshape(-1, 3, 17)
+        pred_kpt = pred_kpt.reshape(-1, 17, 3)
+        pred_kpt_pos = pred_kpt[:, :, :-1]
+        dataset_joints = np.array(self.coco.cats[1]['keypoints'])
 
         jnt_missing = (gt_kpt_visibility == 0).astype(int).T
         pos_gt_src = np.transpose(gt_kpt_pos, [1, 2, 0])

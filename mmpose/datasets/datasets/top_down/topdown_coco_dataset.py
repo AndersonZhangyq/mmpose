@@ -392,14 +392,14 @@ class TopDownCocoDataset(TopDownBaseDataset):
 
         # if 'PCK' in metrics:
         if True:
-            pck_info_str = self._compute_pck(self.coco.anno_file[0], res_file)
+            pck_info_str = self._compute_pck_single_peron(self.coco.anno_file[0], res_file)
             info_str += pck_info_str
 
         name_value = OrderedDict(info_str)
 
         return name_value
 
-    def _compute_pck(self, gt_file, preds_file):
+    def _compute_pck_single_peron(self, gt_file, preds_file):
         SC_BIAS = 0.6
         threshold = 0.5
         gt_dict = json.load(open(gt_file))
@@ -500,6 +500,7 @@ class TopDownCocoDataset(TopDownBaseDataset):
                      if not cls == '__background__']
 
         results = self._coco_keypoint_results_one_category_kernel(data_pack[0])
+        print(results)
 
         with open(res_file, 'w') as f:
             json.dump(results, f, sort_keys=True, indent=4)
@@ -522,6 +523,7 @@ class TopDownCocoDataset(TopDownBaseDataset):
             result = [{
                 'image_id': img_kpt['image_id'],
                 'category_id': cat_id,
+                'bbox_id': img_kpt['bbox_id'],
                 'keypoints': key_point.tolist(),
                 'score': float(img_kpt['score']),
                 'center': img_kpt['center'].tolist(),

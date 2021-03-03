@@ -701,3 +701,7 @@ def test_top_down_JHMDB_dataset():
 
         with pytest.raises(KeyError):
             _ = custom_dataset.evaluate(outputs, tmpdir, 'mAP')
+
+
+if __name__ == "__main__":
+    test_top_down_COCO_dataset()

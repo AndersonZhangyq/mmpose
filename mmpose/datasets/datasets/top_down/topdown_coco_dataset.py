@@ -479,7 +479,7 @@ class TopDownCocoDataset(TopDownBaseDataset):
 
         name_value = [('Nose_single', PCKh[nose]),
                     ('Eye_single', 0.5 * (PCKh[leye] + PCKh[reye])),
-                    ('Ear_single', 0.5 * (PCKh[lear] + PCKh[reye])),
+                    ('Ear_single', 0.5 * (PCKh[lear] + PCKh[rear])),
                     ('Shoulder_single', 0.5 * (PCKh[lsho] + PCKh[rsho])),
                     ('Elbow_single', 0.5 * (PCKh[lelb] + PCKh[relb])),
                     ('Wrist_single', 0.5 * (PCKh[lwri] + PCKh[rwri])),
@@ -502,6 +502,10 @@ class TopDownCocoDataset(TopDownBaseDataset):
             (item['image_id'], item['bbox_id']): item['keypoints']
             for item in preds
         }
+        for key, (kpt, kpt_vis, bbox) in gt_single.items():
+            if key not in pred_single:
+                # pred_single[key] = kpt.flatten().tolist()
+                pred_single[key] = np.zeros_like(kpt).flatten().tolist()
         assert len(gt_single) == len(pred_single)
         assert sorted(gt_single.keys()) == sorted(pred_single.keys())
         gt_scale = np.array(
@@ -553,7 +557,7 @@ class TopDownCocoDataset(TopDownBaseDataset):
 
         name_value = [('Nose', PCKh[nose]),
                     ('Eye', 0.5 * (PCKh[leye] + PCKh[reye])),
-                    ('Ear', 0.5 * (PCKh[lear] + PCKh[reye])),
+                    ('Ear', 0.5 * (PCKh[lear] + PCKh[rear])),
                     ('Shoulder', 0.5 * (PCKh[lsho] + PCKh[rsho])),
                     ('Elbow', 0.5 * (PCKh[lelb] + PCKh[relb])),
                     ('Wrist', 0.5 * (PCKh[lwri] + PCKh[rwri])),
@@ -575,7 +579,6 @@ class TopDownCocoDataset(TopDownBaseDataset):
                      if not cls == '__background__']
 
         results = self._coco_keypoint_results_one_category_kernel(data_pack[0])
-        print(results)
 
         with open(res_file, 'w') as f:
             json.dump(results, f, sort_keys=True, indent=4)

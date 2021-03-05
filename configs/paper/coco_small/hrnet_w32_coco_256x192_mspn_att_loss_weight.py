@@ -3,8 +3,8 @@ load_from = None
 resume_from = None
 dist_params = dict(backend='nccl')
 workflow = [('train', 1)]
-checkpoint_config = dict(interval=10)
-evaluation = dict(interval=10, metric='mAP', key_indicator='AP')
+checkpoint_config = dict(interval=2)
+evaluation = dict(interval=2, metric='mAP', key_indicator='AP')
 
 optimizer = dict(
     type='Adam',
@@ -42,7 +42,7 @@ model = dict(
     pretrained='https://download.openmmlab.com/mmpose/'
     'pretrain_models/hrnet_w32-36af842e.pth',
     backbone=dict(
-        type='HRNet',
+        type='HRNetSeperateStages',
         in_channels=3,
         extra=dict(
             stage1=dict(
@@ -71,18 +71,24 @@ model = dict(
                 num_channels=(32, 64, 128, 256))),
     ),
     keypoint_head=dict(
-        type='TopDownSimpleHead',
-        in_channels=32,
+        type='TopDownMSMUHead',
+        concat_output_by_att=True,
+        out_shape=(64, 48),
+        unit_channels=32,
         out_channels=channel_cfg['num_output_channels'],
-        num_deconv_layers=0,
-        extra=dict(final_conv_kernel=1, ),
-        loss_keypoint=dict(type='JointsMSELoss', use_target_weight=True)),
-    train_cfg=dict(),
+        num_stages=1,
+        num_units=3,
+        use_prm=False,
+        norm_cfg=dict(type='BN')),
+    train_cfg=dict(loss_weights=[0.01] + [0.1] + [1] + [1]),
     test_cfg=dict(
         flip_test=True,
-        post_process='default',
-        shift_heatmap=True,
-        modulate_kernel=11))
+        post_process='megvii',
+        shift_heatmap=False,
+        modulate_kernel=5),
+    # loss_pose=dict(type='JointsMSELoss', use_target_weight=True))
+    loss_pose=[dict(type='JointsMSELoss', use_target_weight=True)] * 2 +
+    [dict(type='JointsOHKMMSELoss', use_target_weight=True)] * 2)
 
 data_cfg = dict(
     image_size=[192, 256],
@@ -115,7 +121,10 @@ train_pipeline = [
         type='NormalizeTensor',
         mean=[0.485, 0.456, 0.406],
         std=[0.229, 0.224, 0.225]),
-    dict(type='TopDownGenerateTarget', sigma=2),
+    dict(
+        type='TopDownGenerateTarget',
+        kernel=[(9, 9), (7, 7), (5, 5), (5, 5)],
+        encoding='Megvii'),
     dict(
         type='Collect',
         keys=['img', 'target', 'target_weight'],
@@ -150,6 +159,7 @@ data = dict(
     workers_per_gpu=4,
     val_dataloader=dict(samples_per_gpu=32),
     test_dataloader=dict(samples_per_gpu=32),
+    val_dataloader=dict(samples_per_gpu=48),
     train=dict(
         type='TopDownCocoDataset',
         ann_file=f'{data_root}/annotations/person_keypoints_train2017_0.03.json',

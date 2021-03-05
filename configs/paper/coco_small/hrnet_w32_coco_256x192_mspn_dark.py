@@ -101,9 +101,9 @@ data_cfg = dict(
     nms_thr=1.0,
     oks_thr=0.9,
     vis_thr=0.2,
-    use_gt_bbox=True,
+    use_gt_bbox=False,
     det_bbox_thr=0.0,
-    bbox_file=None,
+    bbox_file='data/coco/person_detection_results/multi_scales_val_msra_AP_651.json',
 )
 
 train_pipeline = [
@@ -154,6 +154,8 @@ data_root = 'data/coco'
 data = dict(
     samples_per_gpu=48,
     workers_per_gpu=4,
+    val_dataloader=dict(samples_per_gpu=32),
+    test_dataloader=dict(samples_per_gpu=32),
     train=dict(
         type='TopDownCocoDataset',
         ann_file=f'{data_root}/annotations/person_keypoints_train2017_0.03.json',

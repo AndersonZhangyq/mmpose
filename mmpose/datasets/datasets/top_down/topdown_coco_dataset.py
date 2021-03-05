@@ -390,8 +390,8 @@ class TopDownCocoDataset(TopDownBaseDataset):
 
         info_str = self._do_python_keypoint_eval(res_file)
 
-        # if 'PCK' in metrics:
-        if True:
+        # if True:
+        if 'PCK' in metrics:
             pck_info_str_single = self._compute_pck_single_peron(self.coco.anno_file[0], res_file)
             pck_info_str = self._compute_pck(res_file)
             info_str += pck_info_str + pck_info_str_single

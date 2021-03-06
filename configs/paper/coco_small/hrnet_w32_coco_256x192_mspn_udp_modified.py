@@ -79,18 +79,24 @@ model = dict(
         num_stages=1,
         num_units=3,
         use_prm=False,
-        norm_cfg=dict(type='BN')),
-    train_cfg=dict(loss_weights=[0.25] * 2 + [1]),
+        norm_cfg=dict(type='BN'),
+        loss_keypoint=[
+            dict(
+                type='JointsMSELoss', use_target_weight=True, loss_weight=0.25)
+        ] * 2 + [
+            dict(
+                type='JointsOHKMMSELoss',
+                use_target_weight=True,
+                loss_weight=1.)
+        ]),
+    train_cfg=dict(),
     test_cfg=dict(
         flip_test=True,
         post_process='default',
         shift_heatmap=False,
         target_type=target_type,
         modulate_kernel=11,
-        use_udp=True),
-    # loss_pose=dict(type='JointsMSELoss', use_target_weight=True))
-    loss_pose=[dict(type='JointsMSELoss', use_target_weight=True)] * 2 +
-    [dict(type='JointsOHKMMSELoss', use_target_weight=True)])
+        use_udp=True))
 
 data_cfg = dict(
     image_size=[192, 256],

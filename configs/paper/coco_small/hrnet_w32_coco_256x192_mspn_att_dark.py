@@ -3,29 +3,27 @@ load_from = None
 resume_from = None
 dist_params = dict(backend='nccl')
 workflow = [('train', 1)]
-checkpoint_config = dict(interval=5)
-evaluation = dict(interval=5, metric='mAP', key_indicator='AP')
+checkpoint_config = dict(interval=2)
+evaluation = dict(interval=2, metric='mAP', key_indicator='AP')
 
 optimizer = dict(
     type='Adam',
-    lr=1e-4,
+    lr=5e-4,
 )
-
 optimizer_config = dict(grad_clip=None)
 # learning policy
 lr_config = dict(
-    policy='CosineAnnealing',
+    policy='step',
     warmup='linear',
     warmup_iters=500,
     warmup_ratio=0.001,
-    min_lr=0.00001)
-total_epochs = 240
+    step=[170, 200])
+total_epochs = 210
 log_config = dict(
-    interval=10,
+    interval=50,
     hooks=[dict(type='TextLoggerHook'),
            dict(type='TensorboardLoggerHook')])
 
-target_type = 'GaussianHeatMap'
 channel_cfg = dict(
     num_output_channels=17,
     dataset_joints=17,
@@ -42,7 +40,7 @@ model = dict(
     pretrained='https://download.openmmlab.com/mmpose/'
     'pretrain_models/hrnet_w32-36af842e.pth',
     backbone=dict(
-        type='HRNetForTransposeDeform',
+        type='HRNetSeperateStages',
         in_channels=3,
         extra=dict(
             stage1=dict(
@@ -69,27 +67,32 @@ model = dict(
                 block='BASIC',
                 num_blocks=(4, 4, 4, 4),
                 num_channels=(32, 64, 128, 256))),
-        transformer_cfg=dict(
-            dim_model=64,
-            dim_feedforward=128,
-            n_head=1,
-            n_encoder_layers=4,
-            heatmap_size=[64, 48]),
     ),
     keypoint_head=dict(
-        type='TopDownSimpleHead',
-        in_channels=64,
+        type='TopDownMSMUHead',
+        concat_output_by_att=True,
+        out_shape=(64, 48),
+        unit_channels=32,
         out_channels=channel_cfg['num_output_channels'],
-        num_deconv_layers=0,
-        extra=dict(final_conv_kernel=1, ),
-    ),
+        num_stages=1,
+        num_units=3,
+        use_prm=False,
+        norm_cfg=dict(type='BN'),
+        loss_keypoint=[
+            dict(
+                type='JointsMSELoss', use_target_weight=True, loss_weight=0.25)
+        ] * 2 + [
+            dict(
+                type='JointsOHKMMSELoss',
+                use_target_weight=True,
+                loss_weight=1)
+        ] * 2),
     train_cfg=dict(),
     test_cfg=dict(
         flip_test=True,
-        post_process='default',
+        post_process='unbiased',
         shift_heatmap=True,
-        modulate_kernel=11),
-    loss_keypoint=dict(type='JointsMSELoss', use_target_weight=True))
+        modulate_kernel=5))
 
 data_cfg = dict(
     image_size=[192, 256],
@@ -104,8 +107,7 @@ data_cfg = dict(
     vis_thr=0.2,
     use_gt_bbox=True,
     det_bbox_thr=0.0,
-    bbox_file='data/coco/person_detection_results/'
-    'COCO_val2017_detections_AP_H_56_person.json',
+    bbox_file=None,
 )
 
 train_pipeline = [
@@ -116,15 +118,17 @@ train_pipeline = [
         num_joints_half_body=8,
         prob_half_body=0.3),
     dict(
-        type='TopDownGetRandomScaleRotation', rot_factor=180,
-        scale_factor=0.5),
+        type='TopDownGetRandomScaleRotation', rot_factor=40, scale_factor=0.5),
     dict(type='TopDownAffine'),
     dict(type='ToTensor'),
     dict(
         type='NormalizeTensor',
         mean=[0.485, 0.456, 0.406],
         std=[0.229, 0.224, 0.225]),
-    dict(type='TopDownGenerateTarget', sigma=2),
+    dict(
+        type='TopDownGenerateTarget',
+        kernel=[(9, 9), (7, 7), (5, 5), (5, 5)],
+        encoding='Megvii'),
     dict(
         type='Collect',
         keys=['img', 'target', 'target_weight'],
@@ -157,11 +161,12 @@ data_root = 'data/coco'
 data = dict(
     samples_per_gpu=32,
     workers_per_gpu=4,
-    val_dataloader=dict(samples_per_gpu=32),
-    test_dataloader=dict(samples_per_gpu=32),
+    val_dataloader=dict(samples_per_gpu=48),
+    test_dataloader=dict(samples_per_gpu=48),
     train=dict(
         type='TopDownCocoDataset',
-        ann_file=f'{data_root}/annotations/person_keypoints_train2017_0.03.json',
+        ann_file=
+        f'{data_root}/annotations/person_keypoints_train2017_0.03.json',
         img_prefix=f'{data_root}/train2017/',
         data_cfg=data_cfg,
         pipeline=train_pipeline),

@@ -89,7 +89,7 @@ model = dict(
         post_process='default',
         shift_heatmap=True,
         modulate_kernel=11),
-    loss_pose=dict(type='JointsMSELoss', use_target_weight=True))
+    loss_keypoint=dict(type='JointsMSELoss', use_target_weight=True))
 
 data_cfg = dict(
     image_size=[192, 256],

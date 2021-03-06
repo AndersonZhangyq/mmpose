@@ -21,10 +21,8 @@ lr_config = dict(
 total_epochs = 210
 log_config = dict(
     interval=50,
-    hooks=[
-        dict(type='TextLoggerHook'),
-        dict(type='TensorboardLoggerHook')
-    ])
+    hooks=[dict(type='TextLoggerHook'),
+           dict(type='TensorboardLoggerHook')])
 
 channel_cfg = dict(
     num_output_channels=17,
@@ -78,16 +76,24 @@ model = dict(
         num_stages=1,
         num_units=3,
         use_prm=False,
-        norm_cfg=dict(type='BN')),
-    train_cfg=dict(loss_weights=[0.01] + [0.1] + [1]),
+        norm_cfg=dict(type='BN'),
+        loss_keypoint=[
+            dict(
+                type='JointsMSELoss', use_target_weight=True, loss_weight=0.01)
+        ] +
+        [dict(type='JointsMSELoss', use_target_weight=True, loss_weight=0.1)
+         ] + [
+             dict(
+                 type='JointsOHKMMSELoss',
+                 use_target_weight=True,
+                 loss_weight=1.)
+         ]),
+    train_cfg=dict(),
     test_cfg=dict(
         flip_test=True,
         post_process='megvii',
         shift_heatmap=False,
-        modulate_kernel=5),
-    # loss_pose=dict(type='JointsMSELoss', use_target_weight=True))
-    loss_pose=[dict(type='JointsMSELoss', use_target_weight=True)] * 2 +
-    [dict(type='JointsOHKMMSELoss', use_target_weight=True)])
+        modulate_kernel=5))
 
 data_cfg = dict(
     image_size=[192, 256],
@@ -160,7 +166,8 @@ data = dict(
     test_dataloader=dict(samples_per_gpu=32),
     train=dict(
         type='TopDownCocoDataset',
-        ann_file=f'{data_root}/annotations/person_keypoints_train2017_0.03.json',
+        ann_file=
+        f'{data_root}/annotations/person_keypoints_train2017_0.03.json',
         img_prefix=f'{data_root}/train2017/',
         data_cfg=data_cfg,
         pipeline=train_pipeline),

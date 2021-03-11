@@ -1,5 +1,5 @@
 import copy as cp
-
+import torch
 import torch.nn as nn
 from mmcv.cnn import (ConvModule, DepthwiseSeparableConvModule, Linear,
                       build_activation_layer, build_conv_layer,
@@ -411,6 +411,7 @@ class TopDownMSMUHead(TopDownBaseHead):
                  num_units=4,
                  use_prm=False,
                  norm_cfg=dict(type='BN'),
+                 concat_output_by_att=False,
                  selected_stage=-1,
                  loss_keypoint=None,
                  train_cfg=None,
@@ -429,6 +430,14 @@ class TopDownMSMUHead(TopDownBaseHead):
         self.out_channels = out_channels
         self.num_stages = num_stages
         self.num_units = num_units
+        self.concat_output_by_att = concat_output_by_att
+        if concat_output_by_att:
+            self.att_input_transform = nn.Sequential(
+                nn.Conv2d(num_units, num_units, 1),
+                nn.BatchNorm2d(num_units),
+                nn.ReLU(),
+                nn.Conv2d(num_units, 1, 1)
+            )
 
         self.loss = build_loss(loss_keypoint)
 
@@ -533,7 +542,12 @@ class TopDownMSMUHead(TopDownBaseHead):
             for j in range(self.num_units):
                 y = self.predict_layers[i * self.num_units + j](x[i][j])
                 out.append(y)
-
+        if self.concat_output_by_att:
+            bs, c, h, w = out[0].shape
+            catted = torch.stack(out, dim = 1)
+            catted = catted.view(bs, -1, c, h * w)
+            tmp = self.att_input_transform(catted)
+            out.append(tmp.view(bs, c, h, w))
         return out
 
     def inference_model(self, x, flip_pairs=None):

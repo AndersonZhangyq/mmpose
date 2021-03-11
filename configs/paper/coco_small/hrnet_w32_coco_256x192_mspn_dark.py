@@ -79,16 +79,22 @@ model = dict(
         num_stages=1,
         num_units=3,
         use_prm=False,
-        norm_cfg=dict(type='BN')),
-    train_cfg=dict(loss_weights=[0.25] * 2 + [1]),
+        norm_cfg=dict(type='BN'),
+        loss_keypoint=[
+            dict(
+                type='JointsMSELoss', use_target_weight=True, loss_weight=0.25)
+        ] * 2 + [
+            dict(
+                type='JointsOHKMMSELoss',
+                use_target_weight=True,
+                loss_weight=1.)
+        ]),
+    train_cfg=dict(),
     test_cfg=dict(
         flip_test=True,
         post_process='unbiased',
         shift_heatmap=True,
-        modulate_kernel=5),
-    # loss_pose=dict(type='JointsMSELoss', use_target_weight=True))
-    loss_pose=[dict(type='JointsMSELoss', use_target_weight=True)] * 2 +
-    [dict(type='JointsOHKMMSELoss', use_target_weight=True)])
+        modulate_kernel=5))
 
 data_cfg = dict(
     image_size=[192, 256],
@@ -101,9 +107,9 @@ data_cfg = dict(
     nms_thr=1.0,
     oks_thr=0.9,
     vis_thr=0.2,
-    use_gt_bbox=True,
+    use_gt_bbox=False,
     det_bbox_thr=0.0,
-    bbox_file=None,
+    bbox_file='data/coco/person_detection_results/multi_scales_val_msra_AP_651.json',
 )
 
 train_pipeline = [
@@ -154,6 +160,8 @@ data_root = 'data/coco'
 data = dict(
     samples_per_gpu=48,
     workers_per_gpu=4,
+    val_dataloader=dict(samples_per_gpu=32),
+    test_dataloader=dict(samples_per_gpu=32),
     train=dict(
         type='TopDownCocoDataset',
         ann_file=f'{data_root}/annotations/person_keypoints_train2017_0.03.json',

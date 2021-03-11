@@ -155,26 +155,26 @@ val_pipeline = [
 
 test_pipeline = val_pipeline
 
-data_root = 'data/coco'
+data_root = 'data/video_eeg_merged'
 data = dict(
     samples_per_gpu=32,
     workers_per_gpu=4,
     train=dict(
         type='TopDownCocoDataset',
-        ann_file='data/keypoint_merged_train.json',
-        img_prefix='',
+        ann_file=f'{data_root}/keypoint_merged_train.json',
+        img_prefix=f'{data_root}/images/',
         data_cfg=data_cfg,
         pipeline=train_pipeline),
     val=dict(
         type='TopDownCocoDataset',
-        ann_file='data/keypoint_merged_val.json',
-        img_prefix='',
+        ann_file=f'{data_root}/keypoint_merged_val.json',
+        img_prefix=f'{data_root}/images/',
         data_cfg=data_cfg,
         pipeline=val_pipeline),
     test=dict(
         type='TopDownCocoDataset',
-        ann_file='data/keypoint_merged_val.json',
-        img_prefix='',
+        ann_file=f'{data_root}/keypoint_merged_val.json',
+        img_prefix=f'{data_root}/images/',
         data_cfg=data_cfg,
         pipeline=val_pipeline),
 )

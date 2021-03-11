@@ -51,6 +51,7 @@ class TopDownSimpleHead(TopDownBaseHead):
                  num_deconv_kernels=(4, 4, 4),
                  extra=None,
                  in_index=0,
+                 use_attention=False,
                  input_transform=None,
                  align_corners=False,
                  loss_keypoint=None,
@@ -68,9 +69,19 @@ class TopDownSimpleHead(TopDownBaseHead):
         self._init_inputs(in_channels, in_index, input_transform)
         self.in_index = in_index
         self.align_corners = align_corners
+        self.use_attention = use_attention
 
         if extra is not None and not isinstance(extra, dict):
             raise TypeError('extra should be dict or None.')
+
+        if use_attention:
+            self.att = nn.Sequential(
+                nn.Conv2d(in_channels, in_channels // 8, 1),
+                nn.BatchNorm2d(in_channels // 8),
+                nn.ReLU(),
+                nn.Conv2d(in_channels // 8, out_channels, 1),
+                nn.Sigmoid(),
+            )
 
         if num_deconv_layers > 0:
             self.deconv_layers = self._make_deconv_layer(
@@ -193,7 +204,20 @@ class TopDownSimpleHead(TopDownBaseHead):
         """Forward function."""
         x = self._transform_inputs(x)
         x = self.deconv_layers(x)
-        x = self.final_layer(x)
+        _, _, h, w = x.shape
+        if self.use_attention:
+            att = self.att(x)
+            padding_h, padding_w = h // 4, w // 4
+            mask = torch.zeros_like(att)
+            mask[:, :, :, :padding_w] = 1
+            mask[:, :, :, -padding_w:] = 1
+            mask[:, :, -padding_h:, :] = 1
+            mask[:, :, :padding_h, :] = 1
+            aug = self.final_layer(x)
+            x = self.final_layer(x)
+            x = x + aug * att * mask
+        else:
+            x = self.final_layer(x)
         return x
 
     def inference_model(self, x, flip_pairs=None):

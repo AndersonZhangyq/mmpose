@@ -125,10 +125,7 @@ train_pipeline = [
         type='NormalizeTensor',
         mean=[0.485, 0.456, 0.406],
         std=[0.229, 0.224, 0.225]),
-    dict(
-        type='TopDownGenerateTarget',
-        kernel=[(9, 9), (7, 7), (5, 5), (5, 5)],
-        encoding='Megvii'),
+    dict(type='TopDownGenerateTarget', sigma=[1.7, 1.4, 1.1, 1.1], unbiased_encoding=True),
     dict(
         type='Collect',
         keys=['img', 'target', 'target_weight'],
@@ -159,7 +156,7 @@ test_pipeline = val_pipeline
 
 data_root = 'data/coco'
 data = dict(
-    samples_per_gpu=32,
+    samples_per_gpu=48,
     workers_per_gpu=4,
     val_dataloader=dict(samples_per_gpu=48),
     test_dataloader=dict(samples_per_gpu=48),

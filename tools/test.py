@@ -49,6 +49,7 @@ def parse_args():
         choices=['none', 'pytorch', 'slurm', 'mpi'],
         default='none',
         help='job launcher')
+    parser.add_argument('--work-dir', help='the dir to save logs and models')
     parser.add_argument('--local_rank', type=int, default=0)
     args = parser.parse_args()
     if 'LOCAL_RANK' not in os.environ:
@@ -81,7 +82,8 @@ def main():
     cfg.model.pretrained = None
     cfg.data.test.test_mode = True
 
-    args.work_dir = osp.join('./work_dirs',
+    if args.work_dir is None:
+        args.work_dir = osp.join('./work_dirs',
                              osp.splitext(osp.basename(args.config))[0])
     mmcv.mkdir_or_exist(osp.abspath(args.work_dir))
 

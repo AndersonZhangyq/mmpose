@@ -87,7 +87,7 @@ class BottomUp(BasePose):
             batch_size: N
             num_keypoints: K
             num_img_channel: C
-            img_weight: imgW
+            img_width: imgW
             img_height: imgH
             heatmaps weight: W
             heatmaps height: H
@@ -132,7 +132,7 @@ class BottomUp(BasePose):
             batch_size: N
             num_keypoints: K
             num_img_channel: C
-            img_weight: imgW
+            img_width: imgW
             img_height: imgH
             heatmaps weight: W
             heatmaps height: H
@@ -197,7 +197,7 @@ class BottomUp(BasePose):
         Note:
             Batchsize = N (currently support batchsize = 1)
             num_img_channel: C
-            img_weight: imgW
+            img_width: imgW
             img_height: imgH
 
         Args:
@@ -232,7 +232,7 @@ class BottomUp(BasePose):
             if self.with_keypoint:
                 outputs = self.keypoint_head(features)
 
-            if self.test_cfg['flip_test']:
+            if self.test_cfg.get('flip_test', True):
                 # use flip test
                 features_flipped = self.backbone(
                     torch.flip(image_resized, [3]))
@@ -262,7 +262,7 @@ class BottomUp(BasePose):
                 tags,
                 test_scale_factor,
                 self.test_cfg['project2image'],
-                self.test_cfg['flip_test'],
+                self.test_cfg.get('flip_test', True),
                 align_corners=self.use_udp)
 
         # average heatmaps of different scales

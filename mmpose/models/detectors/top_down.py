@@ -98,7 +98,7 @@ class TopDown(BasePose):
             num_keypoints: K
             num_img_channel: C (Default: 3)
             img height: imgH
-            img weight: imgW
+            img width: imgW
             heatmaps height: H
             heatmaps weight: W
 
@@ -165,7 +165,7 @@ class TopDown(BasePose):
             output_heatmap = self.keypoint_head.inference_model(
                 features, flip_pairs=None)
 
-        if self.test_cfg['flip_test']:
+        if self.test_cfg.get('flip_test', True):
             img_flipped = img.flip(3)
             features_flipped = self.backbone(img_flipped)
             if self.with_neck:
